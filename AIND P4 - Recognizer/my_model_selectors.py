@@ -162,12 +162,12 @@ class SelectorCV(ModelSelector):
         
         scores = []
         split_method= KFold()
-        model = self.base_model(num_components)
-
-        for _, test_index in split_method.split(self.sequences):
-           # self.X, self.lengths = combine_sequences(train_index, self.sequences)
+        
+        for train_index,test_index in split_method.split(self.sequences):
+            self.X, self.lengths = combine_sequences(train_index, self.sequences)
             test_X, test_length = combine_sequences(test_index, self.sequences)
-            #model = self.base_model(num_states=num_components).fit(self.X, self.lengths)
+            model = self.base_model(num_states=num_components).fit(self.X, self.lengths)
+            
             scores.append(model.score(test_X, test_length))
         
         cv=np.mean(scores)
