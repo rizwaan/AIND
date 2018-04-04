@@ -67,6 +67,18 @@ class SelectorBIC(ModelSelector):
     http://www2.imm.dtu.dk/courses/02433/doc/ch6_slides.pdf
     Bayesian information criteria: BIC = -2 * logL + p * logN
     """
+    def get_bic_score(self, num_components):
+        # Formula: BIC = −2 log L + p log N
+        # L =likelihood of the fitted model
+        # p =number of parameters
+        # N =num of data points
+        
+        bic_model = self.base_model(num_components)
+        N = len(self.sequences)
+        p = (num_components**2 + 2*num_components*bic_model.n_features - 1)
+        logL = bic_model.score(self.X, self.lengths)
+        bic = -2*logL + p*math.log(N)
+        return bic, bic_model
 
     def select(self):
         """ select the best model for self.this_word based on
@@ -76,8 +88,21 @@ class SelectorBIC(ModelSelector):
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        ##Init
+        best_bic = float("inf") #lower the better
+        best_bic_model = None
+        
+        ##loop through all components
+        for num_components in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                temp_bic, temp_bic_model = self.get_bic_score(num_components)
+                if temp_bic < best_bic:
+                    best_bic = temp_bic
+                    best_bic_model = temp_bic_model
+            except:
+                continue
+        return best_bic_model 
+        
 
 
 class SelectorDIC(ModelSelector):
@@ -90,20 +115,80 @@ class SelectorDIC(ModelSelector):
     DIC = log(P(X(i)) - 1/(M-1)SUM(log(P(X(all but i))
     '''
 
+    def get_dic_score(self, num_components):
+        """
+        Calculates the avg log likelihood of cv folds
+        
+        """
+        # Formula ->
+        # DIC = log(P(X(i)) - 1/(M - 1) * sum(log(P(X(all but i))
+        
+        
+        dic_model = self.base_model(num_components)
+        logL = dic_model.score(self.X, self.lengths)
+        
+        likelihood_all_but_current_word = []
+        for current_word, (X, lengths) in self.hwords.items():
+            if current_word != self.this_word:
+                likelihood_all_but_current_word.append(dic_model.score(X, lengths))
+        dic_score = logL -  np.mean(likelihood_all_but_current_word)
+        return dic_score, dic_model
+
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        
+        ## Logic similar to BIC selector
+        best_dic = float("-inf")
+        best_dic_model = None
+        
+        for num_components in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                temp_dic, temp_dic_model = self.get_dic_score(num_components)
+                if temp_dic > best_dic:
+                    best_dic = temp_dic
+                    best_dic_model = temp_dic_model
+            except:
+                continue
+        return best_dic_model
 
 
 class SelectorCV(ModelSelector):
     ''' select best model based on average log Likelihood of cross-validation folds
 
     '''
+    
+    def get_cv_score(self, num_components):
+        
+        
+        scores = []
+        split_method= KFold()
+        model = self.base_model(num_components)
+
+        for _, test_index in split_method.split(self.sequences):
+           # self.X, self.lengths = combine_sequences(train_index, self.sequences)
+            test_X, test_length = combine_sequences(test_index, self.sequences)
+            #model = self.base_model(num_states=num_components).fit(self.X, self.lengths)
+            scores.append(model.score(test_X, test_length))
+        
+        cv=np.mean(scores)
+
+        return cv, model
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        
 
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        
+        try:
+            best_cv = float("inf")
+            model = None
+            
+            for num_components in range(self.min_n_components, self.max_n_components + 1):
+                temp_cv, temp_model= self.get_cv_score(num_components)
+                if temp_cv < best_cv:
+                    best_cv = temp_cv
+                    model = temp_model
+
+            return model
+        except:
+            return self.base_model(self.n_constant)
