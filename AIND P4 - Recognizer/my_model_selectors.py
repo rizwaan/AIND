@@ -180,12 +180,12 @@ class SelectorCV(ModelSelector):
 
         
         try:
-            best_cv = float("inf")
+            best_cv = float("-inf") ## higher the better
             model = None
             
             for num_components in range(self.min_n_components, self.max_n_components + 1):
                 temp_cv, temp_model= self.get_cv_score(num_components)
-                if temp_cv < best_cv:
+                if temp_cv > best_cv:
                     best_cv = temp_cv
                     model = temp_model
 
